@@ -25,7 +25,7 @@ oc create -f config/openshift-logging-operator-subscription.yaml
 oc get pods -w -n openshift-logging
 ~~~
 
-## Install Loki operator
+## Install the Loki operator
 1. Create CRD for ES
 ~~~
 oc create -f config/logging.openshift.io_elasticsearches.yaml
@@ -75,7 +75,7 @@ oc get pods -n openshift-logging
 ~~~
 8. Verify the logs from OpenShift Console (Refresh Webconsole --> Observe --> Logs) 
 
-## Install grafana operator
+## Install the Grafana operator
 1. Create the operator subscription to install the operator from the OperatorHub
 ~~~
 oc create -f config/grafana-operator-subscription.yaml
@@ -125,4 +125,4 @@ unset SA SECRET BEARER_TOKEN
 1. Using the OpenShift console in your browser, select the openshift-logging project
 2. Navigate to Networking --> Routes
 3. Open the grafana-route location
-4. 
+4. Login using your OpenShift console credentials
