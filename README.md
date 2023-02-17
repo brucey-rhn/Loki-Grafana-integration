@@ -5,63 +5,124 @@
 
 **ii. ROSA/ARO/OCP 4.11 cluster**
 
-1. To start with Loki, install cluster logging operator in `openshift-logging` namespace from the operator hub
-~~~
-$ oc get pods -w -n openshift-logging
-~~~
-2. Install loki operator
-~~~
-$ oc get pods -w -n openshift-operators-redhat
-~~~
-3. Create CRD for ES
-~~~
-$ oc create -f config/logging.openshift.io_elasticsearches.yaml
-~~~
-4. Configure Loki
+**iii. htpasswd utility install (sudo dnf install httpd-tools)**
 
-  I] Create S3 bucket in AWS
-  
-  II] Create Secrete for S3
+## Install the Red Hat OpenShift Logging operator
+1. Create the openshift-logging namespace if needed
 ~~~
-$ oc project openshift-logging
-$ oc create -f config/loki-s3-secret.yaml
+oc get project openshift-logging >/dev/null 2>&1 || oc new-project openshift-logging
 ~~~
-5. Create LokiStack CR
+2. Create the operator group if needed
 ~~~
-$ oc create -f config/logging-loki.yaml
+oc get -n openshift-logging og >/dev/null 2>&1 || oc create -f config/openshift-logging-operator-group.yaml
 ~~~
-6. Create ClusterLogging CR
+3. Create the operator subscription to install the operator from the OperatorHub
 ~~~
-$ oc create -f config/clusterlogging.yaml
+oc create -f config/openshift-logging-operator-subscription.yaml
+~~~
+4. Wait until the operator pod is running
+~~~
+oc get pods -w -n openshift-logging
+~~~
+
+## Install Loki operator
+1. Create CRD for ES
+~~~
+oc create -f config/logging.openshift.io_elasticsearches.yaml
+~~~
+2. Create the operator group if needed
+~~~
+oc get -n openshift-logging og >/dev/null 2>&1 || oc create -f config/openshift-operators-redhat-operator-group.yaml
+~~~
+3. Create the operator subscription to install the operator from the OperatorHub
+~~~
+oc create -f config/loki-operator-subscription.yaml
+~~~
+4. Wait until the operator pod is running
+~~~
+oc get pods -w -n openshift-operators-redhat
+~~~
+
+## Configure Loki
+1. Create the S3 bucket in AWS using your preferred method
+2. Set environment variables
+~~~
+oc project openshift-logging
+export AWS_ACCESS_KEY_ID=<your_aws_access_key_id>
+export AWS_ACCESS_KEY_SECRET=<your_aws_access_key_secret>
+export AWS_REGION=<aws_region>
+export AWS_S3_BUCKET=<your_aws_s3_bucket_name>
+~~~
+3. Create secret for S3
+~~~
+cat config/loki-s3-secret.yaml | envsubst | oc create -f -
+~~~
+4. Cleanup the environment
+~~~
+unset AWS_ACCESS_KEY_ID AWS_ACCESS_KEY_SECRET AWS_REGION AWS_S3_BUCKET
+~~~
+5. Create LokiStack custom resource
+~~~
+oc create -f config/logging-loki.yaml
+~~~
+6. Create ClusterLogging custome resource
+~~~
+oc create -f config/clusterlogging.yaml
 ~~~
 7. Verify all the pods are running
 ~~~
-$ oc get pods -n openshift-logging
+oc get pods -n openshift-logging
 ~~~
-8. Verify the logs from Console (Refresh Webconsole --> Observe --> Logs) 
+8. Verify the logs from OpenShift Console (Refresh Webconsole --> Observe --> Logs) 
 
-9. Install grafana operator
+## Install grafana operator
+1. Create the operator subscription to install the operator from the OperatorHub
 ~~~
-$ oc get pods -n openshift-logging -w
+oc create -f config/grafana-operator-subscription.yaml
 ~~~
-10. Configure grafana
+2. Wait until the operator pod is running
 ~~~
-$ oc create -f config/grafana-cr-proxy-secret.yaml
-$ oc create -f config/grafana-cr-htpasswd-secret.yaml
-$ oc create -f config/grafana-cr-creds-secret.yaml
-$ oc create -f config/grafana-cr.yaml 
-$ oc get pods -w -n openshift-logging
+oc get pods -n openshift-logging -w
 ~~~
-11. Login to grafana console
 
-11. Add datasources (Prometheus and loki) from browser
+## Configure Grafana
+1. Create the Grafana secrets
+~~~
+oc create -f config/grafana-cr-proxy-secret.yaml
+oc create -f config/grafana-cr-htpasswd-secret.yaml
+oc create -f config/grafana-cr-creds-secret.yaml
+~~~
+2. Create the Grafana custom resource
+~~~
+oc create -f config/grafana-cr.yaml
+~~~
+3. Wait until the Grafana pods are are running
+~~~
+oc get pods -w -n openshift-logging
+~~~
+4. Add the role to the Grafana serviceaccount
+~~~
+oc adm policy add-cluster-role-to-user cluster-monitoring-view -z grafana-serviceaccount
+~~~
 
-I] Modify the grafana-datasources.yaml file to add bearer token for grafana service account
+## Add Grafana data sources (Prometheus and Loki)
+1. Set the BEARER_TOKEN environment variable from the grafana serviceaccount secret token
 ~~~
-$ oc sa get-token grafana-serviceaccount (If this doesn't work for some reason, extract the token from the secret as demonstrated in the next step)
-$ oc get sa -oyaml grafana-serviceaccount (Check the secret and copy token and replace it with $BEARER_TOKEN in prometheus datasource)
+SA=grafana-serviceaccount
+SECRET=$(oc get sa $SA -o jsonpath='{.secrets[0].name}')
+export BEARER_TOKEN=$(oc get secret $SECRET -o jsonpath='{.metadata.annotations.openshift\.io/token-secret\.value}')
 ~~~
-Add the role to the Grafana serviceaccount:
+2. Create the data sources
 ~~~
-$ oc adm policy add-cluster-role-to-user cluster-monitoring-view -z grafana-serviceaccount
+cat config/grafana-datasources.yaml | envsubst | oc create -f -
 ~~~
+3. Cleanup the environment
+~~~
+unset SA SECRET BEARER_TOKEN
+~~~
+
+## Login to the Grafana console
+1. Using the OpenShift console in your browser, select the openshift-logging project
+2. Navigate to Networking --> Routes
+3. Open the grafana-route location
+4. 

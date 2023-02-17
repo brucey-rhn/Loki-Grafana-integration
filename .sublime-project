@@ -1,0 +1,7 @@
+"settings":
+    {
+        "SublimeLinter.linters.yamllint.c":
+        [
+            "${project_path}/.yamllint"
+        ]
+    }
